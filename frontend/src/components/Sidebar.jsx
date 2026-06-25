@@ -46,18 +46,22 @@ export default function Sidebar({ user, onLogout }) {
   if (rolLower === 'administrador') {
     menuItems.push(
       { label: 'Usuarios y Roles', path: '/usuarios', icon: Users, active: true },
+      { label: 'Donaciones', path: '/donaciones', icon: Heart, active: true },
+      { label: 'Productos Donados', path: '/productos', icon: FileText, active: true },
       { label: 'Auditoría', path: '#', icon: ShieldAlert, active: false },
       { label: 'Configuración', path: '#', icon: Settings, active: false }
     );
   } else if (rolLower === 'operador') {
     menuItems.push(
-      { label: 'Registrar Donación', path: '#', icon: PlusCircle, active: false },
+      { label: 'Registrar Donación', path: '/donaciones', icon: PlusCircle, active: true },
+      { label: 'Productos Donados', path: '/productos', icon: FileText, active: true },
       { label: 'Gestión Donantes', path: '#', icon: Heart, active: false },
       { label: 'Comprobantes', path: '#', icon: FileText, active: false }
     );
   } else if (rolLower === 'supervisor') {
     menuItems.push(
-      { label: 'Reportes', path: '#', icon: TrendingUp, active: false },
+      { label: 'Donaciones (Reporte)', path: '/donaciones', icon: TrendingUp, active: true },
+      { label: 'Productos Donados', path: '/productos', icon: FileText, active: true },
       { label: 'Monitoreo', path: '#', icon: Activity, active: false },
       { label: 'Exportar', path: '#', icon: Download, active: false }
     );

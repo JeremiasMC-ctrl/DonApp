@@ -4,6 +4,8 @@ import Sidebar from './components/Sidebar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Usuarios from './pages/Usuarios';
+import Donaciones from './pages/Donaciones';
+import Productos from './pages/Productos';
 import api from './api';
 
 export default function App() {
@@ -94,6 +96,8 @@ export default function App() {
                         />
                       } 
                     />
+                    <Route path="/donaciones" element={<Donaciones user={user} />} />
+                    <Route path="/productos" element={<Productos user={user} />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </div>

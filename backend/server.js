@@ -6,9 +6,19 @@ const sequelize = require('./config/sequelize');
 // Relaciones de modelos (asegura que estén cargadas)
 const User = require('./models/User');
 const Role = require('./models/Role');
+const Donacion = require('./models/Donacion');
+const ProductoDonado = require('./models/ProductoDonado');
+
+// Definir relaciones de donaciones y productos
+User.hasMany(Donacion, { foreignKey: 'usuario_id', as: 'donaciones' });
+Donacion.belongsTo(User, { foreignKey: 'usuario_id', as: 'usuario' });
+
+Donacion.hasMany(ProductoDonado, { foreignKey: 'donacion_id', as: 'productos' });
+ProductoDonado.belongsTo(Donacion, { foreignKey: 'donacion_id', as: 'donacion' });
 
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const donacionRoutes = require('./routes/donacionRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,6 +42,7 @@ app.use(express.urlencoded({ extended: true }));
 // Rutas de la API
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api', donacionRoutes);
 
 // Ruta de salud / Healthcheck
 app.use('/api/health', (req, res) => {

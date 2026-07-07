@@ -11,7 +11,10 @@ import {
   TrendingUp, 
   Activity, 
   Download, 
-  LogOut 
+  LogOut,
+  Landmark,
+  Package,
+  BarChart2 
 } from 'lucide-react';
 
 export default function Sidebar({ user, onLogout }) {
@@ -32,44 +35,40 @@ export default function Sidebar({ user, onLogout }) {
     switch (rolLower) {
       case 'administrador':
         return 'bg-red-500/10 text-red-400 border border-red-500/20';
-      case 'supervisor':
-        return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-      case 'operador':
+      case 'trabajador social':
         return 'bg-sky-500/10 text-sky-400 border border-sky-500/20';
+      case 'encargado de bodega':
+        return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
       default:
         return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
     }
   };
 
+  const userPermisos = user?.permisos || [];
   const menuItems = [];
 
-  if (rolLower === 'administrador') {
-    menuItems.push(
-      { label: 'Usuarios y Roles', path: '/usuarios', icon: Users, active: true },
-      { label: 'Donaciones', path: '/donaciones', icon: Heart, active: true },
-      { label: 'Productos Donados', path: '/productos', icon: FileText, active: true },
-      { label: 'Auditoría', path: '#', icon: ShieldAlert, active: false },
-      { label: 'Configuración', path: '#', icon: Settings, active: false }
-    );
-  } else if (rolLower === 'operador') {
-    menuItems.push(
-      { label: 'Registrar Donación', path: '/donaciones', icon: PlusCircle, active: true },
-      { label: 'Productos Donados', path: '/productos', icon: FileText, active: true },
-      { label: 'Gestión Donantes', path: '#', icon: Heart, active: false },
-      { label: 'Comprobantes', path: '#', icon: FileText, active: false }
-    );
-  } else if (rolLower === 'supervisor') {
-    menuItems.push(
-      { label: 'Donaciones (Reporte)', path: '/donaciones', icon: TrendingUp, active: true },
-      { label: 'Productos Donados', path: '/productos', icon: FileText, active: true },
-      { label: 'Monitoreo', path: '#', icon: Activity, active: false },
-      { label: 'Exportar', path: '#', icon: Download, active: false }
-    );
+  if (userPermisos.includes('usuarios')) {
+    menuItems.push({ label: 'Usuarios y Roles', path: '/usuarios', icon: Users, active: true });
+  }
+  if (userPermisos.includes('donaciones')) {
+    menuItems.push({ label: 'Donaciones', path: '/donaciones', icon: Heart, active: true });
+  }
+  if (userPermisos.includes('donantes_consultar')) {
+    menuItems.push({ label: 'Donantes', path: '/donantes', icon: Landmark, active: true });
+  }
+  if (userPermisos.includes('beneficiarios')) {
+    menuItems.push({ label: 'Fundaciones', path: '/beneficiarios', icon: Users, active: true });
+  }
+  if (userPermisos.includes('inventario')) {
+    menuItems.push({ label: 'Registro de Donaciones', path: '/inventario', icon: Package, active: true });
+  }
+  if (userPermisos.includes('reportes')) {
+    menuItems.push({ label: 'Reportes e Inteligencia', path: '/reportes', icon: BarChart2, active: true });
   }
 
   return (
     <aside className="w-80 h-screen sticky top-0 flex flex-col justify-between bg-slate-900/40 border-r border-white/5 backdrop-blur-xl p-6 text-slate-300">
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-8 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0">
         
         {/* Perfil del Usuario */}
         <div className="flex flex-col items-center text-center mt-4 border-b border-white/5 pb-6">
@@ -85,17 +84,19 @@ export default function Sidebar({ user, onLogout }) {
 
         {/* Menú de Navegación */}
         <nav className="flex flex-col gap-2">
-          <Link 
-            to="/" 
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-              location.pathname === '/' 
-                ? 'bg-sky-500/15 text-sky-400 font-medium' 
-                : 'hover:bg-white/5 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <LayoutDashboard size={20} />
-            <span>Panel Principal</span>
-          </Link>
+          {userPermisos.includes('reportes') && (
+            <Link 
+              to="/dashboard" 
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                location.pathname === '/dashboard' 
+                  ? 'bg-sky-500/15 text-sky-400 font-medium' 
+                  : 'hover:bg-white/5 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <LayoutDashboard size={20} />
+              <span>Panel Principal</span>
+            </Link>
+          )}
 
           {menuItems.map((item, idx) => {
             const Icon = item.icon;
@@ -131,7 +132,7 @@ export default function Sidebar({ user, onLogout }) {
       </div>
 
       {/* Botón de Logout */}
-      <div className="border-t border-white/5 pt-4">
+      <div className="border-t border-white/5 pt-4 mt-4">
         <button 
           onClick={onLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-all duration-200"

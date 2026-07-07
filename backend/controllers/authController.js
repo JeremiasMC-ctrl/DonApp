@@ -27,6 +27,16 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales incorrectas. Inténtalo de nuevo.' });
     }
 
+    // Parsear los permisos del rol
+    let permisos = [];
+    if (user.rol && user.rol.permisos) {
+      try {
+        permisos = JSON.parse(user.rol.permisos);
+      } catch (e) {
+        console.error('Error al parsear permisos en login:', e);
+      }
+    }
+
     // Generar token JWT
     const payload = {
       id: user.id,
@@ -36,7 +46,8 @@ exports.login = async (req, res) => {
       usuario: user.usuario,
       email: user.email,
       rol: user.rol ? user.rol.nombre : null,
-      rol_id: user.rol_id
+      rol_id: user.rol_id,
+      permisos
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET || 'donapp_secret_key_2026_xyz', {
@@ -63,6 +74,15 @@ exports.me = async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado.' });
     }
 
+    let permisos = [];
+    if (user.rol && user.rol.permisos) {
+      try {
+        permisos = JSON.parse(user.rol.permisos);
+      } catch (e) {
+        console.error('Error al parsear permisos en me:', e);
+      }
+    }
+
     return res.json({
       id: user.id,
       nombres: user.nombres,
@@ -71,7 +91,8 @@ exports.me = async (req, res) => {
       usuario: user.usuario,
       email: user.email,
       rol: user.rol ? user.rol.nombre : null,
-      rol_id: user.rol_id
+      rol_id: user.rol_id,
+      permisos
     });
   } catch (error) {
     console.error('Error en authController.me:', error);

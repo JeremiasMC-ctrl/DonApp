@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ShieldAlert, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../api';
+import { getDefaultRoute } from '../App';
 
 export default function Login({ onLoginSuccess }) {
   const [usuario, setUsuario] = useState('');
@@ -31,7 +32,7 @@ export default function Login({ onLoginSuccess }) {
       localStorage.setItem('user', JSON.stringify(user));
       
       onLoginSuccess(user);
-      navigate('/');
+      navigate(getDefaultRoute(user));
     } catch (err) {
       console.error(err);
       setError(
@@ -108,6 +109,13 @@ export default function Login({ onLoginSuccess }) {
           >
             {loading ? 'Iniciando sesión...' : 'Ingresar al Sistema'}
           </button>
+
+          <Link 
+            to="/" 
+            className="btn-gradient-secondary mt-2 flex items-center justify-center text-sm font-semibold"
+          >
+            Volver a la Página Principal
+          </Link>
         </form>
 
         {/* Cuentas de Prueba (Acordeón React) */}
@@ -126,8 +134,8 @@ export default function Login({ onLoginSuccess }) {
           <div className={`overflow-hidden transition-all duration-300 max-h-0 ${showCredentials ? 'max-h-40 mt-3' : ''}`}>
             <div className="bg-slate-950/40 border border-white/5 rounded-xl p-3 text-left text-xs leading-relaxed text-slate-400 font-mono">
               <div><strong>Admin:</strong> <code className="text-sky-300">admin</code> / <code className="text-sky-300">admin123</code></div>
-              <div className="mt-1"><strong>Operador:</strong> <code className="text-sky-300">operador</code> / <code className="text-sky-300">operador123</code></div>
-              <div className="mt-1"><strong>Supervisor:</strong> <code className="text-sky-300">supervisor</code> / <code className="text-sky-300">supervisor123</code></div>
+              <div className="mt-1"><strong>Encargado de Bodega (Bodeguero):</strong> <code className="text-sky-300">operador</code> / <code className="text-sky-300">operador123</code></div>
+              <div className="mt-1"><strong>Trabajador Social:</strong> <code className="text-sky-300">supervisor</code> / <code className="text-sky-300">supervisor123</code></div>
             </div>
           </div>
         </div>

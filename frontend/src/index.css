@@ -78,3 +78,31 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* ==========================================================================
+   Estilos de Impresión (Factura de Donación)
+   ========================================================================== */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #000000 !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #printable-factura, #printable-factura * {
+    visibility: visible;
+  }
+  #printable-factura {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    color: #000000 !important;
+    background-color: #ffffff !important;
+  }
+  #printable-factura .no-print {
+    display: none !important;
+  }
+}

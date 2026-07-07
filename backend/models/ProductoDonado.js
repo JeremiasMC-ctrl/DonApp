@@ -28,6 +28,18 @@ const ProductoDonado = sequelize.define('productos_donados', {
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  fecha_vencimiento: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
+  lote: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
+  cantidad_disponible: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   created_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW

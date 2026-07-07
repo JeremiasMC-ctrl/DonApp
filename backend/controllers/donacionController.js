@@ -77,6 +77,14 @@ exports.create = async (req, res) => {
       }
     }
 
+    if (estado === 'Entregada') {
+      const rol = req.user.rol ? req.user.rol.toLowerCase() : '';
+      if (rol !== 'administrador' && rol !== 'supervisor' && rol !== 'trabajador social') {
+        await t.rollback();
+        return res.status(403).json({ error: 'No tienes permisos para marcar una donación como entregada.' });
+      }
+    }
+
     // Crear la cabecera de la donación
     const nuevaDonacion = await Donacion.create({
       donante,
@@ -84,7 +92,8 @@ exports.create = async (req, res) => {
       fecha: fecha || new Date(),
       estado: estado || 'En Espera',
       observaciones: observaciones || '',
-      usuario_id: req.user.id
+      usuario_id: req.user.id,
+      donante_id: req.body.donante_id || null
     }, { transaction: t });
 
     // Preparar y crear productos
@@ -93,7 +102,10 @@ exports.create = async (req, res) => {
       categoria: p.categoria,
       cantidad: parseInt(p.cantidad),
       unidad: p.unidad || 'unidades',
-      donacion_id: nuevaDonacion.id
+      donacion_id: nuevaDonacion.id,
+      fecha_vencimiento: p.fecha_vencimiento || null,
+      lote: p.lote || null,
+      cantidad_disponible: parseInt(p.cantidad)
     }));
 
     await ProductoDonado.bulkCreate(productosData, { transaction: t });
@@ -119,7 +131,7 @@ exports.create = async (req, res) => {
 
 // Modificar donación y productos (HU006)
 exports.update = async (req, res) => {
-  const t = await sequelize.transaction();
+  let t;
   try {
     const { id } = req.params;
     const { donante, institucion, fecha, estado, observaciones, productos } = req.body;
@@ -133,24 +145,40 @@ exports.update = async (req, res) => {
       return res.status(404).json({ error: 'La donación no existe.' });
     }
 
+    if (donacion.estado === 'Entregada') {
+      return res.status(400).json({ error: 'No se puede modificar una donación que ya ha sido entregada.' });
+    }
+
+    if (estado === 'Entregada' && donacion.estado !== 'Entregada') {
+      const rol = req.user.rol ? req.user.rol.toLowerCase() : '';
+      if (rol !== 'administrador' && rol !== 'supervisor' && rol !== 'trabajador social') {
+        return res.status(403).json({ error: 'No tienes permisos para marcar una donación como entregada.' });
+      }
+    }
+
+    t = await sequelize.transaction();
+
     // Actualizar campos de la donación
     donacion.donante = donante;
     donacion.institucion = institucion;
     if (fecha) donacion.fecha = fecha;
     if (estado) donacion.estado = estado;
     donacion.observaciones = observaciones || '';
+    donacion.donante_id = req.body.donante_id || null;
     
     await donacion.save({ transaction: t });
 
     // Si se enviaron productos, actualizar la lista
     if (productos && Array.isArray(productos)) {
       if (productos.length === 0) {
+        if (t) await t.rollback();
         return res.status(400).json({ error: 'La donación debe tener al menos un producto.' });
       }
 
       // Validar productos individuales
       for (const prod of productos) {
         if (!prod.nombre || !prod.categoria || !prod.cantidad) {
+          if (t) await t.rollback();
           return res.status(400).json({ error: 'Todos los productos deben tener nombre, categoría y cantidad.' });
         }
       }
@@ -167,7 +195,10 @@ exports.update = async (req, res) => {
         categoria: p.categoria,
         cantidad: parseInt(p.cantidad),
         unidad: p.unidad || 'unidades',
-        donacion_id: id
+        donacion_id: id,
+        fecha_vencimiento: p.fecha_vencimiento || null,
+        lote: p.lote || null,
+        cantidad_disponible: parseInt(p.cantidad)
       }));
 
       await ProductoDonado.bulkCreate(productosData, { transaction: t });
@@ -184,7 +215,7 @@ exports.update = async (req, res) => {
       donacion: donacionCompleta
     });
   } catch (error) {
-    await t.rollback();
+    if (t) await t.rollback();
     console.error('Error en donacionController.update:', error);
     return res.status(500).json({ error: 'Error al actualizar la donación.' });
   }

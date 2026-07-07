@@ -2,23 +2,17 @@ const express = require('express');
 const router = express.Router();
 const donacionController = require('../controllers/donacionController');
 const authMiddleware = require('../middlewares/authMiddleware');
+const permissionMiddleware = require('../middlewares/permissionMiddleware');
 
-// Middleware para verificar si el usuario tiene rol de escritura (Administrador u Operador)
-const canWrite = (req, res, next) => {
-  const rol = req.user.rol.toLowerCase();
-  if (rol !== 'administrador' && rol !== 'operador') {
-    return res.status(403).json({ error: 'Acceso denegado. Los supervisores solo tienen acceso de lectura.' });
-  }
-  next();
-};
+router.use(authMiddleware);
 
 // Rutas de Donaciones
-router.get('/donaciones', authMiddleware, donacionController.getAll);
-router.get('/donaciones/:id', authMiddleware, donacionController.getById);
-router.post('/donaciones', authMiddleware, canWrite, donacionController.create);
-router.put('/donaciones/:id', authMiddleware, canWrite, donacionController.update);
+router.get('/donaciones', permissionMiddleware('donaciones'), donacionController.getAll);
+router.get('/donaciones/:id', permissionMiddleware('donaciones'), donacionController.getById);
+router.post('/donaciones', permissionMiddleware('donaciones'), donacionController.create);
+router.put('/donaciones/:id', permissionMiddleware('donaciones'), donacionController.update);
 
 // Rutas de Productos
-router.get('/productos', authMiddleware, donacionController.getProductos);
+router.get('/productos', permissionMiddleware('donaciones'), donacionController.getProductos);
 
 module.exports = router;

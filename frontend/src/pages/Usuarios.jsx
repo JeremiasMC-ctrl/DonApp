@@ -47,6 +47,66 @@ export default function Usuarios({ user, onUpdateCurrentUserRole }) {
   const [roleError, setRoleError] = useState(null);
   const [roleSubmitting, setRoleSubmitting] = useState(false);
 
+  // Estados para Roles y Permisos Dinámicos
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
+  const [selectedRoleForPermissions, setSelectedRoleForPermissions] = useState(null);
+  const [rolePermissions, setRolePermissions] = useState([]);
+  const [permissionsError, setPermissionsError] = useState(null);
+  const [permissionsSubmitting, setPermissionsSubmitting] = useState(false);
+
+  const availablePermissions = [
+    { id: 'usuarios', label: 'Gestionar Usuarios y Roles' },
+    { id: 'donantes_consultar', label: 'Consultar Donantes' },
+    { id: 'donantes_gestionar', label: 'Registrar/Editar Donantes' },
+    { id: 'beneficiarios', label: 'Gestionar Fundaciones' },
+    { id: 'donaciones', label: 'Registrar/Clasificar Donaciones' },
+    { id: 'inventario', label: 'Gestionar Inventario y Alertas' },
+    { id: 'reportes', label: 'Reportes y Dashboard' }
+  ];
+
+  const openPermissionsModal = (role) => {
+    setSelectedRoleForPermissions(role);
+    let perms = [];
+    if (role.permisos) {
+      try {
+        perms = typeof role.permisos === 'string' ? JSON.parse(role.permisos) : role.permisos;
+      } catch (e) {
+        console.error('Error al parsear permisos:', e);
+      }
+    }
+    setRolePermissions(perms);
+    setPermissionsError(null);
+    setShowPermissionsModal(true);
+  };
+
+  const togglePermission = (permId) => {
+    if (rolePermissions.includes(permId)) {
+      setRolePermissions(rolePermissions.filter(p => p !== permId));
+    } else {
+      setRolePermissions([...rolePermissions, permId]);
+    }
+  };
+
+  const handlePermissionsSubmit = async (e) => {
+    e.preventDefault();
+    setPermissionsError(null);
+    setPermissionsSubmitting(true);
+
+    try {
+      await api.put(`/users/roles/${selectedRoleForPermissions.id}/permissions`, {
+        permisos: rolePermissions
+      });
+      setSuccessMsg('Permisos del rol actualizados correctamente.');
+      setShowPermissionsModal(false);
+      fetchUsersAndRoles();
+    } catch (err) {
+      console.error(err);
+      setPermissionsError(err.response?.data?.error || 'Error al guardar los permisos del rol.');
+    } finally {
+      setPermissionsSubmitting(false);
+    }
+  };
+
   const navigate = useNavigate();
 
   // Redireccionar si no es Administrador
@@ -178,8 +238,9 @@ export default function Usuarios({ user, onUpdateCurrentUserRole }) {
   const getBadgeClass = (rolName) => {
     const name = rolName?.toLowerCase() || '';
     if (name === 'administrador') return 'bg-red-500/10 text-red-400 border border-red-500/20';
-    if (name === 'supervisor') return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
-    return 'bg-sky-500/10 text-sky-400 border border-sky-500/20';
+    if (name === 'encargado de bodega') return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+    if (name === 'trabajador social') return 'bg-sky-500/10 text-sky-400 border border-sky-500/20';
+    return 'bg-slate-500/10 text-slate-400 border border-slate-500/20';
   };
 
   return (
@@ -283,11 +344,76 @@ export default function Usuarios({ user, onUpdateCurrentUserRole }) {
           )}
         </div>
 
+        {/* Listado de Roles y Permisos (HU004 / Módulo de Roles y Permisos) */}
+        <div className="glass-card mt-8">
+          <div className="flex items-center gap-2.5 mb-6 border-b border-white/5 pb-4">
+            <ShieldCheck size={20} className="text-emerald-500" />
+            <h2 className="text-lg font-bold text-slate-200">Roles y Permisos del Sistema</h2>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-white/5 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+                  <th className="py-4.5 px-4">Rol</th>
+                  <th className="py-4.5 px-4">Descripción</th>
+                  <th className="py-4.5 px-4">Permisos Asignados</th>
+                  <th className="py-4.5 px-4 text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-slate-300">
+                {roles.map((rol) => {
+                  let perms = [];
+                  if (rol.permisos) {
+                    try {
+                      perms = typeof rol.permisos === 'string' ? JSON.parse(rol.permisos) : rol.permisos;
+                    } catch (e) {}
+                  }
+                  return (
+                    <tr key={rol.id} className="hover:bg-white/[0.02] transition-colors duration-150">
+                      <td className="py-4 px-4 font-semibold text-slate-200">
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${getBadgeClass(rol.nombre)}`}>
+                          {rol.nombre}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-slate-400 max-w-xs truncate" title={rol.descripcion}>
+                        {rol.descripcion}
+                      </td>
+                      <td className="py-4 px-4">
+                        <div className="flex flex-wrap gap-1 max-w-lg">
+                          {perms.length === 0 ? (
+                            <span className="text-slate-600 text-xs italic">Ningún permiso asignado</span>
+                          ) : (
+                            perms.map((p, idx) => (
+                              <span key={idx} className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-semibold border border-white/5">
+                                {availablePermissions.find(ap => ap.id === p)?.label || p}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => openPermissionsModal(rol)}
+                          className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-semibold text-xs rounded-lg transition-colors"
+                        >
+                          Configurar Permisos
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* ==========================================
            MODAL DE REGISTRO (HU003)
            ========================================== */}
         {showRegisterModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
             <div className="w-full max-w-lg bg-slate-900 border border-white/10 rounded-3xl overflow-hidden p-8 shadow-2xl relative">
               <button 
                 onClick={() => setShowRegisterModal(false)}
@@ -391,7 +517,7 @@ export default function Usuarios({ user, onUpdateCurrentUserRole }) {
            MODAL DE EDICIÓN DE ROL (HU004)
            ========================================== */}
         {showRoleModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
             <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl overflow-hidden p-8 shadow-2xl relative">
               <button 
                 onClick={() => setShowRoleModal(false)}
@@ -468,6 +594,65 @@ export default function Usuarios({ user, onUpdateCurrentUserRole }) {
                   disabled={roleSubmitting}
                 >
                   {roleSubmitting ? 'Actualizando...' : 'ACTUALIZAR'}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ==========================================
+           MODAL DE CONFIGURACIÓN DE PERMISOS (HU004)
+           ========================================== */}
+        {showPermissionsModal && selectedRoleForPermissions && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl overflow-hidden p-8 shadow-2xl relative">
+              <button 
+                type="button"
+                onClick={() => setShowPermissionsModal(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-200"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold text-slate-100 uppercase tracking-widest font-display">CONFIGURAR PERMISOS</h3>
+                <p className="text-slate-400 text-xs mt-1">Rol: <span className="text-sky-400 font-bold">{selectedRoleForPermissions.nombre}</span></p>
+              </div>
+
+              {permissionsError && (
+                <div className="mb-5 p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs flex items-center gap-2">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{permissionsError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handlePermissionsSubmit} className="flex flex-col gap-4">
+                <div className="space-y-3 bg-slate-950/40 p-4 rounded-2xl border border-white/5 max-h-72 overflow-y-auto">
+                  {availablePermissions.map((perm) => {
+                    const isChecked = rolePermissions.includes(perm.id);
+                    return (
+                      <label key={perm.id} className="flex items-start gap-3 cursor-pointer select-none py-1 hover:bg-white/[0.02] px-2 rounded-lg">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => togglePermission(perm.id)}
+                          className="mt-1 accent-sky-500"
+                        />
+                        <div>
+                          <div className="text-xs font-semibold text-slate-200">{perm.label}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">Permiso de tipo {perm.id}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="btn-gradient mt-4 text-xs font-semibold py-2.5"
+                  disabled={permissionsSubmitting}
+                >
+                  {permissionsSubmitting ? 'Guardando...' : 'GUARDAR PERMISOS'}
                 </button>
               </form>
             </div>

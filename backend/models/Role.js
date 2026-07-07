@@ -15,6 +15,11 @@ const Role = sequelize.define('roles', {
   descripcion: {
     type: DataTypes.STRING(255),
     allowNull: false
+  },
+  permisos: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: '[]'
   }
 }, {
   tableName: 'roles',

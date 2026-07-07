@@ -33,6 +33,10 @@ const Donacion = sequelize.define('donaciones', {
     type: DataTypes.INTEGER,
     allowNull: true
   },
+  donante_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
   created_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW

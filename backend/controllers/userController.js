@@ -133,3 +133,36 @@ exports.assignRole = async (req, res) => {
     return res.status(500).json({ error: 'Error al asignar el rol.' });
   }
 };
+
+// Actualizar permisos de un rol (para HU004/Módulo de Roles)
+exports.updateRolePermissions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { permisos } = req.body; // Array de strings
+
+    if (!Array.isArray(permisos)) {
+      return res.status(400).json({ error: 'El campo permisos debe ser un arreglo.' });
+    }
+
+    const role = await Role.findByPk(id);
+    if (!role) {
+      return res.status(404).json({ error: 'El rol no existe.' });
+    }
+
+    role.permisos = JSON.stringify(permisos);
+    await role.save();
+
+    return res.json({
+      mensaje: 'Permisos actualizados correctamente.',
+      rol: {
+        id: role.id,
+        nombre: role.nombre,
+        permisos: JSON.parse(role.permisos)
+      }
+    });
+  } catch (error) {
+    console.error('Error en userController.updateRolePermissions:', error);
+    return res.status(500).json({ error: 'Error al actualizar permisos del rol.' });
+  }
+};
+

@@ -26,10 +26,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      // Si el token es inválido o expiró, limpiar almacenamiento y recargar
+      // Si el token es inválido o expiró, limpiar almacenamiento
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      if (window.location.pathname !== '/login') {
+      
+      // Permitir que las rutas públicas (como '/' o '/login') permanezcan sin redirigir
+      const publicPaths = ['/', '/login'];
+      if (!publicPaths.includes(window.location.pathname)) {
         window.location.href = '/login';
       }
     }

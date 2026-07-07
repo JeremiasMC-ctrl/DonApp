@@ -14,11 +14,12 @@ import {
 import api from '../api';
 import Header from '../components/Header';
 
-export default function Donaciones({ user }) {
+export default function Donaciones({ user, hideHeader }) {
   const [donaciones, setDonaciones] = useState([]);
+  const [donantes, setDonantes] = useState([]);
   const [loading, setLoading] = useState(true);
   const rolLower = user?.rol?.toLowerCase() || '';
-  const isSupervisor = rolLower === 'supervisor';
+  const isSupervisor = rolLower === 'supervisor' || rolLower === 'trabajador social';
 
   // Alertas
   const [successMsg, setSuccessMsg] = useState(null);
@@ -28,10 +29,13 @@ export default function Donaciones({ user }) {
   const [showModal, setShowModal] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentDonationId, setCurrentDonationId] = useState(null);
+  const [originalEstado, setOriginalEstado] = useState('');
+  const [printData, setPrintData] = useState(null);
 
   // Formulario
   const [form, setForm] = useState({
     donante: '',
+    donante_id: '',
     institucion: '',
     fecha: '',
     estado: 'En Espera',
@@ -60,7 +64,21 @@ export default function Donaciones({ user }) {
 
   useEffect(() => {
     fetchDonaciones();
+    fetchDonantes();
   }, []);
+
+  // Bloquear el scroll del fondo cuando el modal esté abierto
+  useEffect(() => {
+    if (showModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showModal]);
+
 
   const fetchDonaciones = async () => {
     setLoading(true);
@@ -75,12 +93,23 @@ export default function Donaciones({ user }) {
     }
   };
 
+  const fetchDonantes = async () => {
+    try {
+      const response = await api.get('/donantes');
+      setDonantes(response.data || []);
+    } catch (err) {
+      console.error('Error al cargar donantes:', err);
+    }
+  };
+
   // Abrir modal de creación
   const handleOpenCreate = () => {
     setIsEditMode(false);
     setCurrentDonationId(null);
+    setOriginalEstado('En Espera');
     setForm({
       donante: '',
+      donante_id: '',
       institucion: instituciones[0],
       fecha: new Date().toISOString().split('T')[0],
       estado: 'En Espera',
@@ -95,8 +124,10 @@ export default function Donaciones({ user }) {
   const handleOpenViewEdit = (don) => {
     setIsEditMode(true);
     setCurrentDonationId(don.id);
+    setOriginalEstado(don.estado);
     setForm({
       donante: don.donante,
+      donante_id: don.donante_id || '',
       institucion: don.institucion,
       fecha: don.fecha,
       estado: don.estado,
@@ -107,6 +138,16 @@ export default function Donaciones({ user }) {
     });
     setFormError(null);
     setShowModal(true);
+  };
+
+  // Imprimir Factura / Comprobante de Donación
+  const handlePrintFactura = (donationId) => {
+    const don = donaciones.find(d => d.id === donationId);
+    if (!don) return;
+    setPrintData(don);
+    setTimeout(() => {
+      window.print();
+    }, 250);
   };
 
   // Agregar fila de producto en el modal
@@ -140,10 +181,22 @@ export default function Donaciones({ user }) {
     setFormError(null);
     setSubmitting(true);
 
-    const { donante, institucion, fecha, estado, observaciones, productos } = form;
+    const { donante, donante_id, institucion, fecha, estado, observaciones, productos } = form;
 
-    if (!donante.trim() || !institucion.trim() || !fecha) {
-      setFormError('Todos los campos de la cabecera son obligatorios.');
+    if (!donante || !donante.trim()) {
+      setFormError('El nombre del donante es obligatorio.');
+      setSubmitting(false);
+      return;
+    }
+
+    if (!institucion || !institucion.trim()) {
+      setFormError('La institución destino es obligatoria.');
+      setSubmitting(false);
+      return;
+    }
+
+    if (!fecha) {
+      setFormError('La fecha de la donación es obligatoria.');
       setSubmitting(false);
       return;
     }
@@ -155,9 +208,20 @@ export default function Donaciones({ user }) {
     }
 
     // Validar productos
-    for (const p of productos) {
-      if (!p.nombre.trim() || !p.cantidad || parseInt(p.cantidad) <= 0) {
-        setFormError('Todos los productos deben tener nombre y cantidad válida mayor a 0.');
+    for (let i = 0; i < productos.length; i++) {
+      const p = productos[i];
+      if (!p.nombre || !p.nombre.trim()) {
+        setFormError(`El nombre del producto #${i + 1} es obligatorio.`);
+        setSubmitting(false);
+        return;
+      }
+      if (!p.cantidad || parseInt(p.cantidad) <= 0) {
+        setFormError(`La cantidad del producto #${i + 1} debe ser mayor a 0.`);
+        setSubmitting(false);
+        return;
+      }
+      if (!p.unidad || !p.unidad.trim()) {
+        setFormError(`La unidad del producto #${i + 1} es obligatoria (ej: kg, unidades).`);
         setSubmitting(false);
         return;
       }
@@ -189,9 +253,14 @@ export default function Donaciones({ user }) {
     return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
   };
 
+  const isReadOnly = (isEditMode && originalEstado === 'Entregada');
+  const disableInputs = isReadOnly || (isEditMode && form.estado === 'Entregada');
+  const canSetEntregada = rolLower === 'administrador' || rolLower === 'admin' || rolLower === 'supervisor' || rolLower === 'trabajador social';
+  const disableProductInputs = disableInputs || isSupervisor;
+
   return (
     <div className="flex-1 flex flex-col min-h-screen">
-      <Header title={isSupervisor ? 'Reporte de Donaciones' : 'Gestión de Donaciones'} user={user} />
+      {!hideHeader && <Header title={isSupervisor ? 'Reporte de Donaciones' : 'Gestión de Donaciones'} user={user} />}
 
       <main className="p-6 md:p-8 flex-1 flex flex-col gap-6 max-w-7xl w-full mx-auto animate-fade-in relative z-10">
         
@@ -288,7 +357,7 @@ export default function Donaciones({ user }) {
                             onClick={() => handleOpenViewEdit(don)}
                             className="px-3.5 py-1.5 rounded-lg border border-sky-500/20 text-sky-400 hover:bg-sky-500/10 text-xs font-semibold tracking-wide transition-all duration-150 flex items-center gap-1.5 mx-auto animate-pulse-subtle"
                           >
-                            {isSupervisor ? (
+                            {don.estado === 'Entregada' ? (
                               <>
                                 <Eye size={13} />
                                 <span>Ver Detalle</span>
@@ -309,27 +378,36 @@ export default function Donaciones({ user }) {
             </div>
           )}
         </div>
+      </main>
 
-        {/* ==========================================
-           MODAL DE CREACIÓN / EDICIÓN
-           ========================================== */}
-        {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
-            <div className="w-full max-w-3xl bg-slate-900 border border-white/10 rounded-3xl overflow-hidden p-8 shadow-2xl relative my-8">
-              <button 
-                onClick={() => setShowModal(false)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-slate-200"
-              >
-                <X size={20} />
-              </button>
-
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-bold text-slate-100 uppercase tracking-widest font-display">
-                  {isSupervisor ? 'Detalle de Donación' : (isEditMode ? 'Editar Donación' : 'Registrar Donación')}
+      {/* ==========================================
+         MODAL DE CREACIÓN / EDICIÓN
+         ========================================== */}
+      {showModal && (
+          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
+            <div className="w-full max-w-3xl glass-panel rounded-3xl overflow-hidden p-8 shadow-2xl animate-fade-in space-y-6 my-8">
+              <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                <h3 className="text-lg font-bold text-slate-100 font-display">
+                  {isReadOnly ? 'Detalle de Donación' : (isEditMode ? 'Editar Donación' : 'Registrar Donación')}
                 </h3>
-                <p className="text-slate-400 text-xs mt-1">
-                  {isSupervisor ? 'Consulta la información de la donación seleccionada' : 'Completa la información para el registro'}
-                </p>
+                <div className="flex items-center gap-3">
+                  {isEditMode && form.estado === 'Entregada' && (
+                    <button
+                      type="button"
+                      onClick={() => handlePrintFactura(currentDonationId)}
+                      className="px-3.5 py-1.5 bg-sky-500 hover:bg-sky-600 text-white font-semibold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-sky-500/10 active:scale-[0.98]"
+                    >
+                      <FileText size={13} />
+                      <span>Imprimir Factura</span>
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setShowModal(false)}
+                    className="text-slate-400 hover:text-white text-sm font-semibold transition-colors"
+                  >
+                    Cerrar
+                  </button>
+                </div>
               </div>
 
               {formError && (
@@ -339,20 +417,33 @@ export default function Donaciones({ user }) {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+              <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
                 {/* Cabecera */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider pl-1">Donante</label>
                     <input
                       type="text"
+                      list="donantes-list"
                       className="glass-input text-xs disabled:opacity-50"
-                      required
-                      placeholder="Nombre del donante"
+                      placeholder="Escribe o selecciona un donante"
                       value={form.donante}
-                      disabled={isSupervisor}
-                      onChange={(e) => setForm({ ...form, donante: e.target.value })}
+                      disabled={disableProductInputs}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        const matchedDonante = donantes.find(d => d.nombre.toLowerCase() === name.toLowerCase());
+                        setForm({
+                          ...form,
+                          donante: name,
+                          donante_id: matchedDonante ? matchedDonante.id : ''
+                        });
+                      }}
                     />
+                    <datalist id="donantes-list">
+                      {donantes.map((don) => (
+                        <option key={don.id} value={don.nombre} />
+                      ))}
+                    </datalist>
                   </div>
 
                   <div className="flex flex-col gap-1.5">
@@ -361,7 +452,7 @@ export default function Donaciones({ user }) {
                       className="w-full rounded-xl bg-slate-950/40 border border-white/10 px-4 py-3 outline-none text-slate-200 text-xs focus:border-sky-500/50 disabled:opacity-50"
                       required
                       value={form.institucion}
-                      disabled={isSupervisor}
+                      disabled={disableProductInputs}
                       onChange={(e) => setForm({ ...form, institucion: e.target.value })}
                     >
                       {instituciones.map((inst, i) => (
@@ -377,13 +468,12 @@ export default function Donaciones({ user }) {
                     <div className="relative">
                       <input
                         type="date"
-                        className="glass-input text-xs pl-10 disabled:opacity-50"
+                        className="glass-input text-xs disabled:opacity-50"
                         required
                         value={form.fecha}
-                        disabled={isSupervisor}
+                        disabled={disableProductInputs}
                         onChange={(e) => setForm({ ...form, fecha: e.target.value })}
                       />
-                      <Calendar size={14} className="absolute left-3.5 top-3.5 text-slate-400" />
                     </div>
                   </div>
 
@@ -393,11 +483,13 @@ export default function Donaciones({ user }) {
                       className="w-full rounded-xl bg-slate-950/40 border border-white/10 px-4 py-3 outline-none text-slate-200 text-xs focus:border-sky-500/50 disabled:opacity-50"
                       required
                       value={form.estado}
-                      disabled={isSupervisor}
+                      disabled={isReadOnly}
                       onChange={(e) => setForm({ ...form, estado: e.target.value })}
                     >
                       <option value="En Espera" className="bg-slate-900 text-slate-200">En Espera</option>
-                      <option value="Entregada" className="bg-slate-900 text-slate-200">Entregada</option>
+                      {(canSetEntregada || form.estado === 'Entregada') && (
+                        <option value="Entregada" className="bg-slate-900 text-slate-200">Entregada</option>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -409,7 +501,7 @@ export default function Donaciones({ user }) {
                     className="glass-input text-xs resize-none disabled:opacity-50"
                     placeholder="Observaciones adicionales..."
                     value={form.observaciones}
-                    disabled={isSupervisor}
+                    disabled={disableInputs}
                     onChange={(e) => setForm({ ...form, observaciones: e.target.value })}
                   />
                 </div>
@@ -418,7 +510,7 @@ export default function Donaciones({ user }) {
                 <div className="border-t border-white/5 pt-4">
                   <div className="flex justify-between items-center mb-4">
                     <h4 className="text-xs font-bold uppercase tracking-widest text-sky-400 pl-1">Productos Donados</h4>
-                    {!isSupervisor && (
+                    {!disableProductInputs && (
                       <button
                         type="button"
                         onClick={handleAddProductRow}
@@ -430,7 +522,7 @@ export default function Donaciones({ user }) {
                     )}
                   </div>
 
-                  <div className="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                  <div className="flex flex-col gap-3 pr-1">
                     {form.productos.map((prod, idx) => (
                       <div key={idx} className="flex flex-col sm:flex-row items-center gap-3 bg-slate-950/20 p-3 rounded-xl border border-white/5">
                         
@@ -441,7 +533,7 @@ export default function Donaciones({ user }) {
                             className="glass-input text-xs py-2 disabled:opacity-50"
                             required
                             value={prod.nombre}
-                            disabled={isSupervisor}
+                            disabled={disableProductInputs}
                             onChange={(e) => handleProductChange(idx, 'nombre', e.target.value)}
                           />
                         </div>
@@ -451,7 +543,7 @@ export default function Donaciones({ user }) {
                             className="w-full rounded-xl bg-slate-950/40 border border-white/10 px-3 py-2 outline-none text-slate-200 text-xs focus:border-sky-500/50 disabled:opacity-50"
                             required
                             value={prod.categoria}
-                            disabled={isSupervisor}
+                            disabled={disableProductInputs}
                             onChange={(e) => handleProductChange(idx, 'categoria', e.target.value)}
                           >
                             {categorias.map((cat, i) => (
@@ -468,7 +560,7 @@ export default function Donaciones({ user }) {
                             className="glass-input text-xs py-2 text-center disabled:opacity-50"
                             required
                             value={prod.cantidad}
-                            disabled={isSupervisor}
+                            disabled={disableProductInputs}
                             onChange={(e) => handleProductChange(idx, 'cantidad', e.target.value)}
                           />
                         </div>
@@ -480,12 +572,12 @@ export default function Donaciones({ user }) {
                             className="glass-input text-xs py-2 disabled:opacity-50"
                             required
                             value={prod.unidad}
-                            disabled={isSupervisor}
+                            disabled={disableProductInputs}
                             onChange={(e) => handleProductChange(idx, 'unidad', e.target.value)}
                           />
                         </div>
 
-                        {!isSupervisor && form.productos.length > 1 && (
+                        {!disableProductInputs && form.productos.length > 1 && (
                           <button
                             type="button"
                             onClick={() => handleRemoveProductRow(idx)}
@@ -500,7 +592,7 @@ export default function Donaciones({ user }) {
                   </div>
                 </div>
 
-                {!isSupervisor && (
+                {!isReadOnly && (
                   <button 
                     type="submit" 
                     className="btn-gradient mt-2 text-xs font-semibold py-2.5"
@@ -514,8 +606,98 @@ export default function Donaciones({ user }) {
           </div>
         )}
 
-      </main>
-      
+      {/* ==========================================
+         COMPROBANTE IMPRIMIBLE (FACTURA DE DONACIÓN)
+         ========================================== */}
+      {printData && (
+        <div id="printable-factura" className="hidden print:block p-8 bg-white text-black font-sans max-w-4xl mx-auto">
+          {/* Cabecera */}
+          <div className="flex justify-between items-start border-b-2 border-slate-300 pb-5">
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-slate-800 uppercase">DonApp</h1>
+              <p className="text-xs text-slate-500 mt-1">Plataforma Logística de Donaciones</p>
+              <p className="text-xs text-slate-500">Reporte y Transparencia Alimentaria</p>
+            </div>
+            <div className="text-right">
+              <h2 className="text-lg font-bold text-slate-800">ACTA DE ENTREGA DE DONACIÓN</h2>
+              <p className="text-sm font-mono font-semibold mt-1">Nº COMPROBANTE: DON-{String(printData.id).padStart(5, '0')}</p>
+              <p className="text-xs text-slate-500 mt-0.5">Fecha de Emisión: {new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          {/* Información del Envío */}
+          <div className="grid grid-cols-2 gap-6 my-6 border-b border-slate-200 pb-5 text-sm">
+            <div>
+              <h3 className="font-bold text-xs uppercase text-slate-500 tracking-wider mb-2">Entidad Donante</h3>
+              <p className="font-bold text-slate-800">{printData.donante}</p>
+              {printData.donante_id && (
+                <p className="text-xs text-slate-650 mt-1">ID Donante: {printData.donante_id}</p>
+              )}
+            </div>
+            <div>
+              <h3 className="font-bold text-xs uppercase text-slate-500 tracking-wider mb-2">Fundación Destinataria</h3>
+              <p className="font-bold text-slate-800">{printData.institucion}</p>
+              <p className="text-xs text-slate-650 mt-1">Fecha de Entrega: {printData.fecha}</p>
+            </div>
+          </div>
+
+          {/* Detalle de Productos */}
+          <div className="my-6">
+            <h3 className="font-bold text-xs uppercase text-slate-500 tracking-wider mb-3">Detalle de Productos Entregados</h3>
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-350 bg-slate-100 text-slate-700 font-bold">
+                  <th className="py-2.5 px-3">Producto</th>
+                  <th className="py-2.5 px-3">Categoría</th>
+                  <th className="py-2.5 px-3">Lote</th>
+                  <th className="py-2.5 px-3">Vencimiento</th>
+                  <th className="py-2.5 px-3 text-right">Cantidad Entregada</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 text-slate-800">
+                {printData.productos && printData.productos.map((prod, idx) => (
+                  <tr key={idx}>
+                    <td className="py-2.5 px-3 font-semibold">{prod.nombre}</td>
+                    <td className="py-2.5 px-3">{prod.categoria}</td>
+                    <td className="py-2.5 px-3 font-mono">{prod.lote || 'Sin Lote'}</td>
+                    <td className="py-2.5 px-3">{prod.fecha_vencimiento ? new Date(prod.fecha_vencimiento).toLocaleDateString() : 'N/A'}</td>
+                    <td className="py-2.5 px-3 text-right font-bold">{prod.cantidad} {prod.unidad || 'unidades'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Observaciones */}
+          {printData.observaciones && (
+            <div className="my-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <h4 className="font-bold text-xs uppercase text-slate-500 mb-1">Observaciones de la Operación</h4>
+              <p className="text-xs text-slate-700 italic">"{printData.observaciones}"</p>
+            </div>
+          )}
+
+          {/* Firmas de Conformidad */}
+          <div className="grid grid-cols-2 gap-12 mt-20 text-center text-xs">
+            <div className="flex flex-col items-center">
+              <div className="w-48 border-b border-slate-400 mb-2"></div>
+              <p className="font-bold text-slate-800">Entregado por (DonApp / Operador)</p>
+              <p className="text-slate-500 mt-1">{printData.usuario ? `${printData.usuario.nombres} ${printData.usuario.apellidos}` : 'Usuario Registrador'}</p>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="w-48 border-b border-slate-400 mb-2"></div>
+              <p className="font-bold text-slate-800">Recibido por (Fundación Destinataria)</p>
+              <p className="text-slate-500 mt-1">Firma Autorizada y Sello</p>
+            </div>
+          </div>
+
+          {/* Pie de página de factura */}
+          <div className="mt-20 border-t border-slate-200 pt-5 text-center text-[10px] text-slate-400">
+            <p>Este documento es un comprobante de entrega oficial emitido por la plataforma DonApp.</p>
+            <p className="mt-1">DonApp © 2026 - Conectando Donantes con Fundaciones Solidarias.</p>
+          </div>
+        </div>
+      )}
+
       <footer className="w-full text-center py-6 text-slate-500 border-t border-white/5 mt-auto text-xs">
         <p>&copy; 2026 DonApp. Todos los derechos reservados. Proyecto Universitario.</p>
       </footer>

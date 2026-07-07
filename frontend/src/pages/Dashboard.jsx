@@ -1,39 +1,70 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Heart, 
   CheckCircle2, 
   Clock, 
-  AlertOctagon 
+  Package 
 } from 'lucide-react';
 import Header from '../components/Header';
+import api from '../api';
 
 export default function Dashboard({ user }) {
-  // Datos simulados de la base de datos (idénticos a la versión PHP)
+  const [donaciones, setDonaciones] = useState([]);
+  const [inventario, setInventario] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [donRes, invRes] = await Promise.all([
+          api.get('/donaciones'),
+          api.get('/inventario')
+        ]);
+        setDonaciones(donRes.data || []);
+        setInventario(invRes.data || []);
+      } catch (err) {
+        console.error("Error al cargar estadísticas en dashboard:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const totalDonaciones = donaciones.length;
+  const entregadas = donaciones.filter(d => d.estado === 'Entregada').length;
+  const enEspera = donaciones.filter(d => d.estado === 'En Espera').length;
+  const totalLotes = inventario.length;
+
   const stats = [
     { 
       label: 'Total Donaciones', 
-      val: '5,483', 
+      val: loading ? '...' : totalDonaciones.toLocaleString(), 
       icon: Heart, 
-      color: 'text-sky-400 bg-sky-500/10 border-sky-500/15' 
+      color: 'text-sky-400 bg-sky-500/10 border-sky-500/15',
+      link: '/donaciones'
     },
     { 
       label: 'Entregadas', 
-      val: '2,859', 
+      val: loading ? '...' : entregadas.toLocaleString(), 
       icon: CheckCircle2, 
-      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/15' 
+      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/15',
+      link: '/donaciones'
     },
     { 
       label: 'En Espera', 
-      val: '1,248', 
+      val: loading ? '...' : enEspera.toLocaleString(), 
       icon: Clock, 
-      color: 'text-amber-400 bg-amber-500/10 border-amber-500/15' 
+      color: 'text-amber-400 bg-amber-500/10 border-amber-500/15',
+      link: '/donaciones'
     },
     { 
-      label: 'Stock Crítico', 
-      val: '38', 
-      icon: AlertOctagon, 
-      color: 'text-red-400 bg-red-500/10 border-red-500/15',
-      isWarning: true
+      label: 'Registro de Donaciones', 
+      val: loading ? '...' : totalLotes.toLocaleString(), 
+      icon: Package, 
+      color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/15',
+      link: '/inventario'
     }
   ];
 
@@ -60,22 +91,21 @@ export default function Dashboard({ user }) {
             {stats.map((stat, idx) => {
               const Icon = stat.icon;
               return (
-                <div 
+                <Link 
                   key={idx} 
-                  className={`glass-card flex items-center gap-4 ${
-                    stat.isWarning ? 'border-red-500/15 hover:border-red-500/30' : ''
-                  }`}
+                  to={stat.link}
+                  className="glass-card flex items-center gap-4 hover:border-sky-500/30 hover:bg-slate-900/40 hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 cursor-pointer"
                 >
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${stat.color}`}>
                     <Icon size={22} />
                   </div>
                   <div>
-                    <div className={`text-2xl font-bold tracking-tight ${stat.isWarning ? 'text-red-400' : 'text-slate-100'}`}>
+                    <div className="text-2xl font-bold tracking-tight text-slate-100">
                       {stat.val}
                     </div>
                     <div className="text-xs text-slate-400 mt-0.5">{stat.label}</div>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

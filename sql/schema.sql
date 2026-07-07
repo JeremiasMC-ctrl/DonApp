@@ -57,3 +57,71 @@ CREATE TABLE productos_donados (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ==========================================================================
+-- SISTEMA INTELIGENTE DE GESTIÓN: MIGRACIONES Y NUEVOS MÓDULOS
+-- ==========================================================================
+
+-- Crear Tabla de Donantes (HU05 a HU08)
+CREATE TABLE IF NOT EXISTS donantes (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    identificacion VARCHAR(50) UNIQUE,
+    email VARCHAR(150),
+    telefono VARCHAR(50),
+    tipo VARCHAR(50) NOT NULL DEFAULT 'Persona Natural', -- 'Persona Natural' o 'Empresa'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Vincular donaciones con donantes
+ALTER TABLE donaciones ADD COLUMN IF NOT EXISTS donante_id INTEGER REFERENCES donantes(id) ON DELETE SET NULL;
+
+-- Crear Tabla de Beneficiarios (HU09 a HU11)
+CREATE TABLE IF NOT EXISTS beneficiarios (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    identificacion VARCHAR(50) UNIQUE,
+    email VARCHAR(150),
+    telefono VARCHAR(50),
+    direccion TEXT,
+    ingreso_mensual NUMERIC(10, 2) DEFAULT 0,
+    dependientes INTEGER DEFAULT 0,
+    servicios_basicos BOOLEAN DEFAULT TRUE,
+    vivienda_precaria BOOLEAN DEFAULT FALSE,
+    nivel_vulnerabilidad VARCHAR(50) DEFAULT 'Media', -- 'Alta', 'Media', 'Baja'
+    puntaje_vulnerabilidad INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Crear Tabla de Observaciones Sociales (HU12)
+CREATE TABLE IF NOT EXISTS observaciones_sociales (
+    id SERIAL PRIMARY KEY,
+    beneficiario_id INTEGER NOT NULL REFERENCES beneficiarios(id) ON DELETE CASCADE,
+    observacion TEXT NOT NULL,
+    usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Agregar columnas de inventario a productos_donados (HU16 a HU19)
+ALTER TABLE productos_donados ADD COLUMN IF NOT EXISTS fecha_vencimiento DATE;
+ALTER TABLE productos_donados ADD COLUMN IF NOT EXISTS lote VARCHAR(50);
+ALTER TABLE productos_donados ADD COLUMN IF NOT EXISTS cantidad_disponible INTEGER;
+
+-- Crear Tabla de Entregas (HU20 a HU22)
+CREATE TABLE IF NOT EXISTS entregas (
+    id SERIAL PRIMARY KEY,
+    beneficiario_id INTEGER NOT NULL REFERENCES beneficiarios(id) ON DELETE CASCADE,
+    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+    comprobante_numero VARCHAR(100) UNIQUE NOT NULL,
+    usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Crear Tabla de Detalles de Entrega (HU20)
+CREATE TABLE IF NOT EXISTS detalles_entrega (
+    id SERIAL PRIMARY KEY,
+    entrega_id INTEGER NOT NULL REFERENCES entregas(id) ON DELETE CASCADE,
+    producto_id INTEGER NOT NULL REFERENCES productos_donados(id) ON DELETE CASCADE,
+    cantidad INTEGER NOT NULL DEFAULT 1
+);
+
+

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Bell, User as UserIcon, LogOut } from 'lucide-react';
 
-export default function Header({ title, user }) {
+export default function Header({ title, user, searchTerm, onSearch, placeholderText }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -45,14 +45,18 @@ export default function Header({ title, user }) {
         </span>
 
         {/* Buscador */}
-        <div className="relative hidden sm:block">
-          <input
-            type="text"
-            placeholder="Buscar donaciones..."
-            className="w-64 rounded-full bg-slate-950/40 border border-white/10 py-2 pl-10 pr-4 outline-none text-sm text-slate-200 placeholder-slate-400 focus:border-sky-500/50 focus:w-72 focus:bg-slate-950/60 transition-all duration-300"
-          />
-          <Search size={16} className="absolute left-3.5 top-2.5 text-slate-400" />
-        </div>
+        {onSearch && (
+          <div className="relative hidden sm:block">
+            <input
+              type="text"
+              placeholder={placeholderText || "Buscar..."}
+              value={searchTerm || ''}
+              onChange={(e) => onSearch(e.target.value)}
+              className="w-64 rounded-full bg-slate-950/40 border border-white/10 py-2 pl-10 pr-4 outline-none text-sm text-slate-200 placeholder-slate-400 focus:border-sky-500/50 focus:w-72 focus:bg-slate-950/60 transition-all duration-300"
+            />
+            <Search size={16} className="absolute left-3.5 top-2.5 text-slate-400" />
+          </div>
+        )}
 
         {/* Botón de Notificaciones */}
         <button 

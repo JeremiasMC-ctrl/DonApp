@@ -344,70 +344,7 @@ export default function Usuarios({ user, onUpdateCurrentUserRole }) {
           )}
         </div>
 
-        {/* Listado de Roles y Permisos (HU004 / Módulo de Roles y Permisos) */}
-        <div className="glass-card mt-8">
-          <div className="flex items-center gap-2.5 mb-6 border-b border-white/5 pb-4">
-            <ShieldCheck size={20} className="text-emerald-500" />
-            <h2 className="text-lg font-bold text-slate-200">Roles y Permisos del Sistema</h2>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-white/5 text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                  <th className="py-4.5 px-4">Rol</th>
-                  <th className="py-4.5 px-4">Descripción</th>
-                  <th className="py-4.5 px-4">Permisos Asignados</th>
-                  <th className="py-4.5 px-4 text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-slate-300">
-                {roles.map((rol) => {
-                  let perms = [];
-                  if (rol.permisos) {
-                    try {
-                      perms = typeof rol.permisos === 'string' ? JSON.parse(rol.permisos) : rol.permisos;
-                    } catch (e) {}
-                  }
-                  return (
-                    <tr key={rol.id} className="hover:bg-white/[0.02] transition-colors duration-150">
-                      <td className="py-4 px-4 font-semibold text-slate-200">
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${getBadgeClass(rol.nombre)}`}>
-                          {rol.nombre}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-slate-400 max-w-xs truncate" title={rol.descripcion}>
-                        {rol.descripcion}
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex flex-wrap gap-1 max-w-lg">
-                          {perms.length === 0 ? (
-                            <span className="text-slate-600 text-xs italic">Ningún permiso asignado</span>
-                          ) : (
-                            perms.map((p, idx) => (
-                              <span key={idx} className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-semibold border border-white/5">
-                                {availablePermissions.find(ap => ap.id === p)?.label || p}
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => openPermissionsModal(rol)}
-                          className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-semibold text-xs rounded-lg transition-colors"
-                        >
-                          Configurar Permisos
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
         {/* ==========================================
            MODAL DE REGISTRO (HU003)

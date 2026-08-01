@@ -9,7 +9,8 @@ import {
   CheckCircle, 
   X,
   Eye,
-  Edit2
+  Edit2,
+  Clock
 } from 'lucide-react';
 import api from '../api';
 import Header from '../components/Header';
@@ -18,6 +19,7 @@ export default function Donaciones({ user, hideHeader }) {
   const [donaciones, setDonaciones] = useState([]);
   const [donantes, setDonantes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const rolLower = user?.rol?.toLowerCase() || '';
   const isSupervisor = rolLower === 'supervisor' || rolLower === 'trabajador social';
 
@@ -175,36 +177,28 @@ export default function Donaciones({ user, hideHeader }) {
     setForm({ ...form, productos: updated });
   };
 
-  // Envío del formulario (Creación o Actualización)
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFormError(null);
-    setSubmitting(true);
-
-    const { donante, donante_id, institucion, fecha, estado, observaciones, productos } = form;
+  // Validaciones del formulario
+  const validateForm = () => {
+    const { donante, institucion, fecha, productos } = form;
 
     if (!donante || !donante.trim()) {
       setFormError('El nombre del donante es obligatorio.');
-      setSubmitting(false);
-      return;
+      return false;
     }
 
     if (!institucion || !institucion.trim()) {
       setFormError('La institución destino es obligatoria.');
-      setSubmitting(false);
-      return;
+      return false;
     }
 
     if (!fecha) {
       setFormError('La fecha de la donación es obligatoria.');
-      setSubmitting(false);
-      return;
+      return false;
     }
 
     if (productos.length === 0) {
       setFormError('Debes registrar al menos un producto en la donación.');
-      setSubmitting(false);
-      return;
+      return false;
     }
 
     // Validar productos
@@ -212,20 +206,47 @@ export default function Donaciones({ user, hideHeader }) {
       const p = productos[i];
       if (!p.nombre || !p.nombre.trim()) {
         setFormError(`El nombre del producto #${i + 1} es obligatorio.`);
-        setSubmitting(false);
-        return;
+        return false;
       }
       if (!p.cantidad || parseInt(p.cantidad) <= 0) {
         setFormError(`La cantidad del producto #${i + 1} debe ser mayor a 0.`);
-        setSubmitting(false);
-        return;
+        return false;
       }
       if (!p.unidad || !p.unidad.trim()) {
         setFormError(`La unidad del producto #${i + 1} es obligatoria (ej: kg, unidades).`);
-        setSubmitting(false);
-        return;
+        return false;
       }
     }
+    return true;
+  };
+
+  // Marcar como Entregada directamente
+  const handleDeliverDonation = async () => {
+    setFormError(null);
+    if (!validateForm()) return;
+    if (window.confirm('¿Estás seguro de que deseas marcar esta donación como Entregada? Esto la guardará y ya no se podrá modificar.')) {
+      setSubmitting(true);
+      try {
+        const updatedForm = { ...form, estado: 'Entregada' };
+        const response = await api.put(`/donaciones/${currentDonationId}`, updatedForm);
+        setSuccessMsg(response.data.mensaje || 'Donación marcada como entregada.');
+        setShowModal(false);
+        fetchDonaciones();
+      } catch (err) {
+        console.error(err);
+        setFormError(err.response?.data?.error || 'Ocurrió un error al entregar la donación.');
+      } finally {
+        setSubmitting(false);
+      }
+    }
+  };
+
+  // Envío del formulario (Creación o Actualización)
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFormError(null);
+    if (!validateForm()) return;
+    setSubmitting(true);
 
     try {
       if (isEditMode) {
@@ -256,11 +277,103 @@ export default function Donaciones({ user, hideHeader }) {
   const isReadOnly = (isEditMode && originalEstado === 'Entregada');
   const disableInputs = isReadOnly || (isEditMode && form.estado === 'Entregada');
   const canSetEntregada = rolLower === 'administrador' || rolLower === 'admin' || rolLower === 'supervisor' || rolLower === 'trabajador social';
-  const disableProductInputs = disableInputs || isSupervisor;
+  const disableProductInputs = disableInputs;
+
+  const filteredDonaciones = donaciones.filter(d => {
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return true;
+    return (
+      d.id.toString().includes(term) ||
+      d.donante?.toLowerCase().includes(term) ||
+      d.institucion?.toLowerCase().includes(term) ||
+      d.fecha?.toLowerCase().includes(term) ||
+      (d.usuario && `${d.usuario.nombres} ${d.usuario.apellidos}`.toLowerCase().includes(term)) ||
+      (d.productos && d.productos.some(p => p.nombre?.toLowerCase().includes(term)))
+    );
+  });
+
+  const donacionesEnEspera = filteredDonaciones.filter(d => d.estado?.toLowerCase() === 'en espera');
+  const donacionesEntregadas = filteredDonaciones.filter(d => d.estado?.toLowerCase() === 'entregada');
+
+  const renderTable = (lista, mensajeVacio) => {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-white/5 text-slate-400 font-semibold text-xs uppercase tracking-wider">
+              <th className="py-4.5 px-4">ID</th>
+              <th className="py-4.5 px-4">Donante</th>
+              <th className="py-4.5 px-4">Institución Destino</th>
+              <th className="py-4.5 px-4">Fecha</th>
+              <th className="py-4.5 px-4">Productos</th>
+              <th className="py-4.5 px-4">Registrador por</th>
+              <th className="py-4.5 px-4">Estado</th>
+              <th className="py-4.5 px-4 text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5 text-slate-300">
+            {lista.length === 0 ? (
+              <tr>
+                <td colSpan="8" className="text-center py-10 text-slate-500">{mensajeVacio}</td>
+              </tr>
+            ) : (
+              lista.map((don) => (
+                <tr key={don.id} className="hover:bg-white/[0.02] transition-colors duration-150">
+                  <td className="py-4 px-4 font-mono text-slate-450">{don.id}</td>
+                  <td className="py-4 px-4 font-semibold text-slate-200">{don.donante}</td>
+                  <td className="py-4 px-4 text-slate-300">{don.institucion}</td>
+                  <td className="py-4 px-4 text-slate-400 font-mono text-xs">{don.fecha}</td>
+                  <td className="py-4 px-4">
+                    <span className="text-xs text-sky-400 font-semibold bg-sky-500/10 px-2 py-0.5 rounded-md">
+                      {don.productos ? don.productos.length : 0} items
+                    </span>
+                  </td>
+                  <td className="py-4 px-4 text-slate-450 text-xs">
+                    {don.usuario ? `${don.usuario.nombres} ${don.usuario.apellidos}` : 'N/A'}
+                  </td>
+                  <td className="py-4 px-4">
+                    <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${getStatusBadgeClass(don.estado)}`}>
+                      {don.estado}
+                    </span>
+                  </td>
+                  <td className="py-4 px-4 text-center">
+                    <button 
+                      onClick={() => handleOpenViewEdit(don)}
+                      className="px-3.5 py-1.5 rounded-lg border border-sky-500/20 text-sky-400 hover:bg-sky-500/10 text-xs font-semibold tracking-wide transition-all duration-150 flex items-center gap-1.5 mx-auto animate-pulse-subtle"
+                    >
+                      {don.estado === 'Entregada' ? (
+                        <>
+                          <Eye size={13} />
+                          <span>Ver Detalle</span>
+                        </>
+                      ) : (
+                        <>
+                          <Edit2 size={13} />
+                          <span>Editar</span>
+                        </>
+                      )}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-screen">
-      {!hideHeader && <Header title={isSupervisor ? 'Reporte de Donaciones' : 'Gestión de Donaciones'} user={user} />}
+      {!hideHeader && (
+        <Header 
+          title={isSupervisor ? 'Reporte de Donaciones' : 'Gestión de Donaciones'} 
+          user={user} 
+          searchTerm={searchTerm}
+          onSearch={setSearchTerm}
+          placeholderText="Buscar donaciones..."
+        />
+      )}
 
       <main className="p-6 md:p-8 flex-1 flex flex-col gap-6 max-w-7xl w-full mx-auto animate-fade-in relative z-10">
         
@@ -290,94 +403,49 @@ export default function Donaciones({ user, hideHeader }) {
         )}
 
         {/* Tabla de Donaciones */}
-        <div className="glass-card">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-white/5 pb-4">
-            <div className="flex items-center gap-2.5">
-              <Heart size={20} className="text-sky-500" />
-              <h2 className="text-lg font-bold text-slate-200">
-                {isSupervisor ? 'Historial de Donaciones' : 'Donaciones Registradas'}
-              </h2>
-            </div>
-            {!isSupervisor && (
-              <button 
-                type="button" 
-                onClick={handleOpenCreate}
-                className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-medium text-sm rounded-xl flex items-center gap-2 transition-all duration-200 shadow-md shadow-sky-500/10 hover:shadow-sky-600/20"
-              >
-                <Plus size={16} />
-                <span>Registrar Donación</span>
-              </button>
-            )}
+        {loading ? (
+          <div className="glass-card text-center py-12 text-slate-400 text-sm">
+            Cargando donaciones...
           </div>
-
-          {loading ? (
-            <div className="text-center py-12 text-slate-400 text-sm">Cargando donaciones...</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm border-collapse">
-                <thead>
-                  <tr className="border-b border-white/5 text-slate-400 font-semibold text-xs uppercase tracking-wider">
-                    <th className="py-4.5 px-4">ID</th>
-                    <th className="py-4.5 px-4">Donante</th>
-                    <th className="py-4.5 px-4">Institución Destino</th>
-                    <th className="py-4.5 px-4">Fecha</th>
-                    <th className="py-4.5 px-4">Productos</th>
-                    <th className="py-4.5 px-4">Registrador por</th>
-                    <th className="py-4.5 px-4">Estado</th>
-                    <th className="py-4.5 px-4 text-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5 text-slate-300">
-                  {donaciones.length === 0 ? (
-                    <tr>
-                      <td colSpan="8" className="text-center py-10 text-slate-500">No hay donaciones registradas en el sistema.</td>
-                    </tr>
-                  ) : (
-                    donaciones.map((don) => (
-                      <tr key={don.id} className="hover:bg-white/[0.02] transition-colors duration-150">
-                        <td className="py-4 px-4 font-mono text-slate-450">{don.id}</td>
-                        <td className="py-4 px-4 font-semibold text-slate-200">{don.donante}</td>
-                        <td className="py-4 px-4 text-slate-300">{don.institucion}</td>
-                        <td className="py-4 px-4 text-slate-400 font-mono text-xs">{don.fecha}</td>
-                        <td className="py-4 px-4">
-                          <span className="text-xs text-sky-400 font-semibold bg-sky-500/10 px-2 py-0.5 rounded-md">
-                            {don.productos ? don.productos.length : 0} items
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-slate-450 text-xs">
-                          {don.usuario ? `${don.usuario.nombres} ${don.usuario.apellidos}` : 'N/A'}
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${getStatusBadgeClass(don.estado)}`}>
-                            {don.estado}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-center">
-                          <button 
-                            onClick={() => handleOpenViewEdit(don)}
-                            className="px-3.5 py-1.5 rounded-lg border border-sky-500/20 text-sky-400 hover:bg-sky-500/10 text-xs font-semibold tracking-wide transition-all duration-150 flex items-center gap-1.5 mx-auto animate-pulse-subtle"
-                          >
-                            {don.estado === 'Entregada' ? (
-                              <>
-                                <Eye size={13} />
-                                <span>Ver Detalle</span>
-                              </>
-                            ) : (
-                              <>
-                                <Edit2 size={13} />
-                                <span>Editar</span>
-                              </>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+        ) : (
+          <>
+            {/* Donaciones en Espera */}
+            <div className="glass-card mb-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-white/5 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <Clock size={20} className="text-amber-500" />
+                  <h2 className="text-lg font-bold text-slate-200">
+                    Donaciones en Espera
+                  </h2>
+                </div>
+                {!isSupervisor && (
+                  <button 
+                    type="button" 
+                    onClick={handleOpenCreate}
+                    className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-medium text-sm rounded-xl flex items-center gap-2 transition-all duration-200 shadow-md shadow-sky-500/10 hover:shadow-sky-600/20"
+                  >
+                    <Plus size={16} />
+                    <span>Registrar Donación</span>
+                  </button>
+                )}
+              </div>
+              {renderTable(donacionesEnEspera, 'No hay donaciones en espera en el sistema.')}
             </div>
-          )}
-        </div>
+
+            {/* Donaciones Entregadas */}
+            <div className="glass-card">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-white/5 pb-4">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle size={20} className="text-emerald-500" />
+                  <h2 className="text-lg font-bold text-slate-200">
+                    Donaciones Entregadas
+                  </h2>
+                </div>
+              </div>
+              {renderTable(donacionesEntregadas, 'No hay donaciones entregadas en el sistema.')}
+            </div>
+          </>
+        )}
       </main>
 
       {/* ==========================================
@@ -419,7 +487,8 @@ export default function Donaciones({ user, hideHeader }) {
 
               <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6">
                 {/* Cabecera */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Cabecera */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider pl-1">Donante</label>
                     <input
@@ -460,9 +529,7 @@ export default function Donaciones({ user, hideHeader }) {
                       ))}
                     </select>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider pl-1">Fecha</label>
                     <div className="relative">
@@ -475,22 +542,6 @@ export default function Donaciones({ user, hideHeader }) {
                         onChange={(e) => setForm({ ...form, fecha: e.target.value })}
                       />
                     </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider pl-1 font-semibold">Estado de la Donación</label>
-                    <select
-                      className="w-full rounded-xl bg-slate-950/40 border border-white/10 px-4 py-3 outline-none text-slate-200 text-xs focus:border-sky-500/50 disabled:opacity-50"
-                      required
-                      value={form.estado}
-                      disabled={isReadOnly}
-                      onChange={(e) => setForm({ ...form, estado: e.target.value })}
-                    >
-                      <option value="En Espera" className="bg-slate-900 text-slate-200">En Espera</option>
-                      {(canSetEntregada || form.estado === 'Entregada') && (
-                        <option value="Entregada" className="bg-slate-900 text-slate-200">Entregada</option>
-                      )}
-                    </select>
                   </div>
                 </div>
 
@@ -593,13 +644,26 @@ export default function Donaciones({ user, hideHeader }) {
                 </div>
 
                 {!isReadOnly && (
-                  <button 
-                    type="submit" 
-                    className="btn-gradient mt-2 text-xs font-semibold py-2.5"
-                    disabled={submitting}
-                  >
-                    {submitting ? 'Guardando...' : (isEditMode ? 'ACTUALIZAR DONACIÓN' : 'REGISTRAR DONACIÓN')}
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3 mt-2">
+                    <button 
+                      type="submit" 
+                      className="flex-1 btn-gradient text-xs font-semibold py-2.5"
+                      disabled={submitting}
+                    >
+                      {submitting ? 'Guardando...' : (isEditMode ? 'ACTUALIZAR DONACIÓN' : 'REGISTRAR DONACIÓN')}
+                    </button>
+                    {isEditMode && canSetEntregada && (
+                      <button
+                        type="button"
+                        onClick={handleDeliverDonation}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-750 text-white font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-650/10 active:scale-[0.98] disabled:opacity-50"
+                        disabled={submitting}
+                      >
+                        <CheckCircle size={14} />
+                        <span>Marcar como Entregada</span>
+                      </button>
+                    )}
+                  </div>
                 )}
               </form>
             </div>
